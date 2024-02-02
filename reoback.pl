@@ -240,7 +240,7 @@ $endTime = time() - $startTime;
 logger($DEBUG, "\$endTime = $endTime");
 
 printToScreen("Total transfer time: ".timeCalc( $xferTime )."\.\n");
-                                                  
+printToScreen("Total transfer size: ". $totalSize ."\.\n");
 printToScreen( "Overall backup time: ".timeCalc( $endTime )."\.\n\n");
 logger($INFO, "REOBack version $VERSION ended.");
 exit;
