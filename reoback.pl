@@ -44,6 +44,8 @@ my $VERSION     = "Pre 1.1";  # REOBack version number
 my $DATESTAMP   = `date +%Y%m%d`;   # Current date in format: 20010409
 my $DATESTAMPD  = `date +%Y-%m-%d`; # Current date in format: 2001-04-09
 my $TIMESTAMP   = `date +%I%M%p`;   # Current time in format: 0945PM
+                                                                         
+                                                                
 my $EXT         = "\.tgz";          # Tar file extension
 my @VALID_OPTIONS = qw(host backupdays files tmpdir datadir localbackup 
                     keeplocalcopy remotebackup rbackuptype localmount remotehost 
@@ -81,6 +83,8 @@ my $logger;             # Log4perl logging instance
 my $priority;           # Console logging priority
 
 # Parse configuration and load variables to the hash table
+                                          
+
 &parseConfig();
 
 &setLoggingPriority($config{"consolepriority"});
@@ -154,6 +158,9 @@ if ( $config{"remotebackup"} ) {
     if ( ($config{"rbackuptype"} eq "NFS") || ($config{"rbackuptype"} eq "SMB") ) {
       use File::Copy;
       if ( $config{"rbackuptype"} eq "NFS" ) {
+                                               
+
+                                                                      
         $tmpCMD = $config{"nfscommand"}." ".$config{"remotehost"}.":".
         $config{"remotepath"}." ".$config{"localmount"};  			
      }elsif ( $config{"rbackuptype"} eq "SMB" ){
@@ -231,6 +238,7 @@ $endTime = time() - $startTime;
 logger($DEBUG, "\$endTime = $endTime");
 
 printToScreen("Total transfer time: ".timeCalc( $xferTime )."\.\n");
+                                                  
 printToScreen( "Overall backup time: ".timeCalc( $endTime )."\.\n\n");
 logger($INFO, "REOBack version $VERSION ended.");
 exit;
@@ -269,6 +277,7 @@ sub archiveFile{
   # Create the tar archive.  Use this method instead of system() so that we
   # can filter out the "Removing leading `/'" messages.  '2>&1' redirects
   # error messages from tar to stdout so we can catch them.
+                                  
   if ( $skipFile ) {
     $tarCmd = "$config{'tarcommand'} $fileName $config{'tarfileincl'} $listName.incl  $config{'tarfileexcl'} $listName.excl";
     open PROC, "$tarCmd 2>&1|";
@@ -279,6 +288,7 @@ sub archiveFile{
   }
   foreach ( <PROC> ) {
     if ( $_ !~ /Removing leading `\/'/ ) { print $_; }
+                                                                   
   }
   logger($DEBUG, "archiveFile() - Tar command ran: \$tarCmd = $tarCmd");
   close PROC;
@@ -291,6 +301,7 @@ sub archiveFile{
 sub transferFile{
   my $fullPath = $_[0];      # Full path of local archive.
   my $fileName = $_[1];      # Filename to transfer.
+                                                     
   my $startTime = time();
   my $endTime;
   my $errFlag = 0;
@@ -307,6 +318,7 @@ sub transferFile{
      $scp->mkdir($remotePath);
      # Transfer tar file to remote location
      $scp->put($fullPath,$remotePath) or $errFlag = 1;
+                       
   }
   elsif ( $config{"rbackuptype"} eq "FTP" ) {
     my $ftp; # FTP connection object.
@@ -538,6 +550,7 @@ sub backupType {
   $archFiles = $config{"datadir"}."archives.dat";
 
   my $backupDays;     # Number of days to keep backups.
+  my $retention;      # Number of backup cycles to retain.
   my @bstatus;        # Array containing counter and last full backup time.
                       # Key:
                       # 0 = Backup counter, 1 = Last full backup
@@ -549,6 +562,7 @@ sub backupType {
   chomp( $TIMESTAMP );
 
   $backupDays = $config{"backupdays"};
+  $retention = $config{"retention"} || 2;
 
   # Initialize default values
   $bCounter = 1;
@@ -556,6 +570,7 @@ sub backupType {
   $lastFull = $startTime;
 
   if ( -e $fstat ) {
+
     # Status file exists, check to see what type of backup to
     # perform.
     open ( FILESTATUS, "<$fstat" );
@@ -565,7 +580,7 @@ sub backupType {
     $bCounter = $bstatus[0] + 1;
     $lastFull = $bstatus[1];
 
-    # For EXAMPLE backupDays = 7
+    # For EXAMPLE backupDays = 7, retention = 2
     ####################################################################
     # 1 = FULL                        8  = FULL
     # 2 = INCREMENTAL                 9  = INCREMENTAL
@@ -579,9 +594,9 @@ sub backupType {
       $backupType = "incremental";
     }
 
-    # Reached the end of backup cycle ( backup days * 2 )
+    # Reached the end of backup cycle ( backup days * retention )
     # reset counter and do FULL backup.
-    elsif ( $bCounter > ( $backupDays * 2 ) ) {
+    elsif ( $bCounter > ( $backupDays * $retention ) ) {
       $bCounter = 1;
       $lastFull = $startTime;
     }
@@ -598,7 +613,7 @@ sub backupType {
   $lTime = localtime( $lastFull );
   &version;
   printToScreen("\nRunning backup on $config{'host'}.\n");
-  printToScreen("Backup number $bCounter of ".( $backupDays*2 )." (backup days x 2)\n");
+  printToScreen("Backup number $bCounter of ".( $backupDays * $retention )." (backup days (". $backupDays .") x retention (". $retention."))\n");
   if ($forceFull){
     printToScreen("Forced FULL backups requested via command-line parameter.\n");
   }
@@ -749,6 +764,12 @@ sub backupMisc {
     &archiveFile( $fullPath, $fileName, $skipFile );
     &recordArchive( $tarName );
 
+    # Print File size
+    $fileSize = -s $fullPath; 
+    $totalSize = $totalSize + $fileSize;
+    printToScreen("    Filesize: ".$fileSize."\n");
+                                          
+
     # Transfer if needed.
     if ( $config{"remotebackup"} ) { transferFile( $fullPath, $tarName ); }
 
@@ -832,6 +853,7 @@ sub addToInclude {
 
 # Description:  Routine to names of archives
 # Parameter(s): "name of file to add"
+                                           
 # Returns:      Nothing.
 sub recordArchive{
   my $file = $_[0];    # Tar file to record
@@ -886,6 +908,7 @@ sub processDeletions{
   my @records;         # Tar files to process.
   my @record;          # A single tar file.
   my $backupDays;      # Number of days to keep backups.
+  my $retention;       # Number of backup cycles to retain.
   my $firstDel;
   my $secondDel;
   my $file;
@@ -895,10 +918,12 @@ sub processDeletions{
   my ( $upper, $lower, $buNum );
 
   $backupDays = $config{"backupdays"};
+  $retention = $config{"retention"} || 2;
   $firstDel = $backupDays+1;
   $secondDel = $backupDays*2;
 
-  if ( ( $bCounter == $backupDays ) or ( $bCounter == $secondDel ) ) {
+  # Check if we have a full back up | multiple of backup days
+  if ( ( $bCounter % $backupDays ) == 0 ) {
     printToScreen("Deletions of old back-ups in progress...");
 
     open ( TARS, $archFiles );
@@ -907,15 +932,14 @@ sub processDeletions{
 
     open ( TMPFILE, ">$tmpFile" );
 
-    # i.e. if counter is 7, delete 8-14
-    if ( $bCounter == $backupDays ) {
-      $lower = $firstDel;
+    # if counter is equal to backupdays*retention, delete the first backupdays cycle    
+    if ( $bCounter == ( $backupDays * $retention ) ) {
+      $lower = 1;
       $upper = $secondDel;
     }
-    # otherwise delete 1-7
     else {
-      $lower = 1;
-      $upper = $backupDays;
+      $lower = ( int( $bCounter / $backupDays ) * $backupDays ) + 1;
+      $upper = ( ( int( $bCounter / $backupDays ) + 1 ) * $backupDays );
     }
     # Login to remote host if necessary
     if ( $config{"remotebackup"} ) {
@@ -924,6 +948,9 @@ sub processDeletions{
           logWarn("  Unable to connect to remote host! : $!" );
         $ftp->login( $config{"remoteuser"},$config{"remotepasswd"} ) or
           logWarn("  Unable to login to remote host! : $!" );
+                                             
+                           
+         
       }
     }
     foreach ( @records ) {
@@ -962,6 +989,7 @@ sub processDeletions{
               logWarn("    Unable to delete remote file! : $!" );
             rmdir ( $rdir );
           }
+
         }
       }
       else {
@@ -1016,6 +1044,7 @@ sub truncTar {
   open PROC, $config{"tarcommand"} . " $fileName $config{'files'} 2>&1|";
   foreach ( <PROC> ) {
     if ( $_ !~ /Removing leading `\/'/ ) { print $_; }
+  
   }
   close PROC;
 }
@@ -1150,6 +1179,10 @@ END_OF_INFO
 ##############################################################################
 # $Id$
 ###############################################################################
+#
+# $Log$
+# Revision 1.28  2024/02/02 14:39:00  christianjohnm
+# - Added retention option
 #
 # $Log$
 # Revision 1.27  2007/11/22 06:31:03  techno91
